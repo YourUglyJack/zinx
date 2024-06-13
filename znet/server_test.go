@@ -12,7 +12,7 @@ func ClientTest()  {
 
 	time.Sleep(3*time.Second)
 
-	conn, err := net.Dial("tcp4", "127.0.0.1:7777")
+	conn, err := net.Dial("tcp4", "127.0.0.1:7778")
 	if err != nil {
 		fmt.Println("client start err:", err)
 		return
