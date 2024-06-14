@@ -13,6 +13,7 @@ type Server struct {
 	IPVersion string // tcp4 or other
 	IP        string
 	Port      int
+	Router    ziface.IRouter
 }
 
 // ================== 回显业务 ====================
@@ -62,8 +63,8 @@ func (s *Server) Start() {
 			// TODO 设置服务器最大连接
 
 			// TODO 处理新连接 请求业务的方法， handle和conn是绑定的
-			dealConn := NewConnection(conn, cid, CallBackToClient)
-			cid ++
+			dealConn := NewConnection(conn, cid, s.Router)
+			cid++
 
 			// 启动当前连接的业务
 			go dealConn.Start()
@@ -104,12 +105,23 @@ func (s *Server) Server() {
 	}
 }
 
+func (s *Server) AddRouter(router ziface.IRouter) {
+	s.Router = router
+	fmt.Println("Add Router succ!")
+}
+
+
+// ==================================================================================
+
+
+
 func NewServer(name string) ziface.IServer {
 	s := &Server{
 		Name:      name,
 		IPVersion: "tcp4",
 		IP:        "127.0.0.1",
 		Port:      7778,
+		Router:    nil,
 	}
 
 	return s

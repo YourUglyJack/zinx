@@ -6,8 +6,12 @@ import "net"
 type IConnection interface {
 	Start()
 	Stop()
+
 	//从当前连接获取原始的socket TCPConn GetTCPConnection() *net.TCPConn //获取当前连接ID
 	GetConnId() uint32
+	GetTCPConnection() *net.TCPConn
+	RemoteAddr() net.Addr
+
 }
 
 // 定义一个统一处理连接业务的接口
