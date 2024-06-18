@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net"
 	"time"
-	"zinx/ziface"
 	"zinx/utils"
+	"zinx/ziface"
 )
 
 type Server struct {
@@ -14,7 +14,7 @@ type Server struct {
 	IPVersion string // tcp4 or other
 	IP        string
 	Port      int
-	Router    ziface.IRouter
+	msgHandle ziface.IMsgHandle //当前Server的消息管理模块，用来绑定MsgId和对应的处理方法
 }
 
 // ================== 回显业务 ====================
@@ -64,7 +64,7 @@ func (s *Server) Start() {
 			// TODO 设置服务器最大连接
 
 			// TODO 处理新连接 请求业务的方法， handle和conn是绑定的
-			dealConn := NewConnection(conn, cid, s.Router)
+			dealConn := NewConnection(conn, cid, s.msgHandle)
 			cid++
 
 			// 启动当前连接的业务
@@ -106,15 +106,11 @@ func (s *Server) Server() {
 	}
 }
 
-func (s *Server) AddRouter(router ziface.IRouter) {
-	s.Router = router
-	fmt.Println("Add Router succ!")
+func (s *Server) AddRouter(msgId uint32, router ziface.IRouter) {
+	s.msgHandle.AddRouter(msgId, router)
 }
 
-
 // ==================================================================================
-
-
 
 func NewServer(name string) ziface.IServer {
 	utils.GlobalObject.Reload()
@@ -122,9 +118,9 @@ func NewServer(name string) ziface.IServer {
 	s := &Server{
 		Name:      utils.GlobalObject.Name,
 		IPVersion: "tcp4",
-		IP:       utils.GlobalObject.Host,
+		IP:        utils.GlobalObject.Host,
 		Port:      utils.GlobalObject.TcpPort,
-		Router:    nil,
+		msgHandle: NewMsgHandle(),
 	}
 
 	return s

@@ -22,13 +22,13 @@ type PingRouter struct {
 // }
 
 func (pr *PingRouter) Handle(req ziface.IRequest) {
-	fmt.Println("Call Router Handle...")
+	fmt.Println("Call PingRouter Handle...")
 	
 	// 读取客户端的数据
 	fmt.Println("recv from client, msg Id:", req.GetMsgId(), "data:", string(req.GetData()))
 	
 	// 回写数据
-	err := req.GetConnection().SendMsg(1, []byte("ping..."))
+	err := req.GetConnection().SendMsg(0, []byte("ping..."))
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -48,11 +48,27 @@ func (pr *PingRouter) Handle(req ziface.IRequest) {
 // 		return
 // 	}
 // }
+type HelloZinxRouter struct {
+	znet.BaseRouter
+}
+
+func (hzr *HelloZinxRouter) Handle(req ziface.IRequest) {
+	fmt.Println("Call HelloZinxRouter Handle...")
+
+	fmt.Println("recv from client, msg Id:", req.GetMsgId(), "data:", string(req.GetData()))
+
+	err := req.GetConnection().SendMsg(1, []byte("Hello Zinx Router v0.6"))
+	if err != nil {
+		fmt.Println(err)
+	}
+
+}
 
 func main() {
 	s := znet.NewServer("[Zinx v0.5]")
 
-	s.AddRouter(&PingRouter{})
+	s.AddRouter(0, &PingRouter{})
+	s.AddRouter(1, &HelloZinxRouter{})
 
 	s.Server()
 }

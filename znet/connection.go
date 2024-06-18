@@ -10,21 +10,22 @@ import (
 
 type Connection struct {
 	Conn     *net.TCPConn
+	
 	ConnID   uint32
+
 	isClosed bool
 
-	Router ziface.IRouter
+	MsgHandle ziface.IMsgHandle
 
-	// handleAPI    ziface.HandFunc
 	ExitBuffChan chan bool // 告知该连接已经退出/停止的channel
 }
 
-func NewConnection(conn *net.TCPConn, connID uint32, router ziface.IRouter) *Connection {
+func NewConnection(conn *net.TCPConn, connID uint32, msgHandle ziface.IMsgHandle) *Connection {
 	c := &Connection{
 		Conn:         conn,
 		ConnID:       connID,
 		isClosed:     false,
-		Router:       router,
+		MsgHandle:    msgHandle,
 		ExitBuffChan: make(chan bool, 1),
 	}
 	return c
@@ -74,12 +75,7 @@ func (c *Connection) StartReader() {
 		}
 
 		// 然后开启一个goroutine去调用给Zinx框架注册好的路由业务
-		go func(request ziface.IRequest) {
-			fmt.Println(c.Router)
-			c.Router.PreHandle(request)
-			c.Router.Handle(request)
-			c.Router.PostHandle(request)
-		}(&req)
+		go c.MsgHandle.DoMsgHandler(&req)
 
 	}
 }
