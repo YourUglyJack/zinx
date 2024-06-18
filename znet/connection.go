@@ -1,7 +1,9 @@
 package znet
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"zinx/ziface"
 )
@@ -35,18 +37,40 @@ func (c *Connection) StartReader() {
 	defer c.Stop()
 
 	for {
-		buf := make([]byte, 512)
-		_, err := c.Conn.Read(buf)
-		if err != nil {
-			fmt.Println("revc buff err:", err)
+		// 创建拆包解包对象
+		dp := NewDataPack()
+
+		// 读取客户端的msghead
+		headData := make([]byte, dp.GetHeadLen())
+		if _, err := io.ReadFull(c.GetTCPConnection(), headData); err != nil {
+			fmt.Println("read msg head err:", err)
 			c.ExitBuffChan <- true
 			continue
 		}
 
+		// 拆包，得到msg，msg里有msgid以及datalen
+		msg, err := dp.Unpack(headData)
+		if err != nil {
+			fmt.Println("unpack err:", err)
+			c.ExitBuffChan <- true
+			continue
+		}
+
+		var data []byte
+		if msg.GetDataLen() > 0 {
+			data = make([]byte, msg.GetDataLen())
+			if _, err := io.ReadFull(c.GetTCPConnection(), data); err != nil {
+				fmt.Println("read msg err", err)
+				c.ExitBuffChan <- true
+				continue
+			}
+		}
+		msg.SetData(data)
+
 		// 在conn读取完客户端数据之后，将数据和conn封装到一个Request中，作为Router的输入数据
 		req := Request{
 			conn: c,
-			data: buf,
+			msg:  msg,
 		}
 
 		// 然后开启一个goroutine去调用给Zinx框架注册好的路由业务
@@ -56,11 +80,7 @@ func (c *Connection) StartReader() {
 			c.Router.Handle(request)
 			c.Router.PostHandle(request)
 		}(&req)
-		// if err := c.handleAPI(c.Conn, buf, cnt); err!=nil{
-		// 	fmt.Println("connId", c.ConnID, "handle is error:", err)
-		// 	c.ExitBuffChan <- true
-		// 	return
-		// }
+
 	}
 }
 
@@ -100,4 +120,25 @@ func (c *Connection) GetConnId() uint32 {
 
 func (c *Connection) RemoteAddr() net.Addr {
 	return c.Conn.RemoteAddr()
+}
+
+func (c *Connection) SendMsg(msgId uint32, data []byte) error {
+	if c.isClosed {
+		return errors.New("connection closed")
+	}
+
+	dp := NewDataPack()
+	msg, err := dp.Pack(NewMsgPackage(msgId, data))
+	if err != nil {
+		fmt.Println("pack err, msg id:", msgId)
+		return errors.New("pack err")
+	}
+
+	//
+	if _, err := c.Conn.Write(msg); err != nil {
+		fmt.Println("write err, msg id", msgId)
+		c.ExitBuffChan <- true
+		return errors.New("write err")
+	}
+	return nil
 }
