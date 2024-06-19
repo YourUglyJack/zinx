@@ -5,19 +5,22 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"zinx/utils"
 	"zinx/ziface"
 )
 
 type Connection struct {
-	Conn     *net.TCPConn
-	
-	ConnID   uint32
+	Conn *net.TCPConn
+
+	ConnID uint32
 
 	isClosed bool
 
 	MsgHandle ziface.IMsgHandle
-
-	ExitBuffChan chan bool // 告知该连接已经退出/停止的channel
+	// 告知该连接已经退出/停止的channel
+	ExitBuffChan chan bool
+	// 无缓冲通道，用于读写两个goroutine之间的消息通信
+	msgChan chan []byte
 }
 
 func NewConnection(conn *net.TCPConn, connID uint32, msgHandle ziface.IMsgHandle) *Connection {
@@ -27,13 +30,14 @@ func NewConnection(conn *net.TCPConn, connID uint32, msgHandle ziface.IMsgHandle
 		isClosed:     false,
 		MsgHandle:    msgHandle,
 		ExitBuffChan: make(chan bool, 1),
+		msgChan:      make(chan []byte),
 	}
 	return c
 }
 
 // 处理conn读数据的goroutine
 func (c *Connection) StartReader() {
-	fmt.Println("Reader goroutine is running")
+	fmt.Println("[Reader goroutine is running]")
 	defer fmt.Println(c.RemoteAddr().String(), "conn reader exit...")
 	defer c.Stop()
 
@@ -74,14 +78,36 @@ func (c *Connection) StartReader() {
 			msg:  msg,
 		}
 
-		// 然后开启一个goroutine去调用给Zinx框架注册好的路由业务
-		go c.MsgHandle.DoMsgHandler(&req)
+		if utils.GlobalObject.WorkerPoolSize > 0 {
+			c.MsgHandle.SendMsgToTaskQueue(&req)
+		} else {
+			go c.MsgHandle.DoMsgHandler(&req)
+		}
 
+	}
+}
+
+func (c *Connection) StartWriter() {
+	fmt.Println("[Writer goroutine is running]")
+	defer fmt.Println(c.RemoteAddr().String(), "[conn writer eixt]")
+
+	for {
+		select {
+		case data := <-c.msgChan:
+			if _, err := c.Conn.Write(data); err != nil {
+				fmt.Println("send data err:", err)
+				return
+			}
+		case <-c.ExitBuffChan:
+			return
+		}
 	}
 }
 
 func (c *Connection) Start() {
 	go c.StartReader()
+
+	go c.StartWriter()
 
 	for {
 		select {
@@ -130,11 +156,7 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 		return errors.New("pack err")
 	}
 
-	//
-	if _, err := c.Conn.Write(msg); err != nil {
-		fmt.Println("write err, msg id", msgId)
-		c.ExitBuffChan <- true
-		return errors.New("write err")
-	}
+	c.msgChan <- msg
+
 	return nil
 }

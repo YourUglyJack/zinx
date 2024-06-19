@@ -15,6 +15,8 @@ type GlobalObj struct {
 
 	MaxPacketSize uint32 // 传输数据包的最大值
 	MaxConn       int
+	WorkerPoolSize uint32
+	MaxWorkerTaskLen uint32 //业务工作Worker对应负责的任务队列最大任务存储数量
 }
 
 var GlobalObject *GlobalObj
@@ -39,6 +41,8 @@ func init() {
 		Host:          "127.0.0.1",
 		MaxConn:       1200,
 		MaxPacketSize: 4096,
+		WorkerPoolSize: 10,
+		MaxWorkerTaskLen: 1024,
 	}
 
 	GlobalObject.Reload()
